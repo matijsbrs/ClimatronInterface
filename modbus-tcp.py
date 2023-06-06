@@ -48,6 +48,12 @@ def on_message(client, userdata, msg):
             AirValve.EnableByPassmode()
         else:
             AirValve.DisableByPassmode()
+    
+    if (str(topic[-1]) == "freecooling"):
+        if (msg.payload == b'true'):
+            AirValve.EnableFreeCooling()
+        else:
+            AirValve.DisableFreeCooling()
 
     if (str(topic[-1]) == "automode"):
         if (msg.payload == b'true'):
@@ -110,6 +116,10 @@ try:
         if ((controller.Relais[4] & 1 ) == 0): HighFlow = 1
         HeatRequest = 0
         if ((controller.Relais[5] & 1 ) == 0): HeatRequest = 1
+        ByPass = 0
+        if ((controller.Relais[6] & 1 ) == 0): ByPass = 1
+        FreeCooling = 0
+        if ((controller.Relais[7] & 1 ) == 0): FreeCooling = 1
 
         client.publish("automation/climatronic/relais/vac24", Vac24)
         client.publish("automation/climatronic/relais/airvalve1", AirValve1)
@@ -117,6 +127,8 @@ try:
         client.publish("automation/climatronic/relais/hotwater", HotWater)
         client.publish("automation/climatronic/relais/highflow", HighFlow)
         client.publish("automation/climatronic/relais/heatrequest", HeatRequest)
+        client.publish("automation/climatronic/relais/bypass", ByPass)
+        client.publish("automation/climatronic/relais/freecooling", FreeCooling)
         
         
         controller.getTemperatures()
