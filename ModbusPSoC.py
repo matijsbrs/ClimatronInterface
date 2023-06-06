@@ -18,6 +18,7 @@ class PSoC():
     AdcValues_Offset = 53
     Ventilation_Offset = 14
     Err_Wrng_Offset = 32
+    low_temp_trigger_offset = 16
 
 
     # Values:

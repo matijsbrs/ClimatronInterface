@@ -68,6 +68,8 @@ class Valve(PSoC):
         Relais_6 = 1 # power relais
         self.write_registers(self.Output_Offset+ 6, [Relais_6])
 
+    def set_low_temperature_trigger(self, hysteresis, temperature):
+        self.write_register(self.low_temp_trigger_offset,int((hysteresis&0xFF)<<8)|(temperature&0xFF))
 
     def LowFlow(self):
         # Relais_0 = (self.CountDown<<8) | (self.SetOnZero) | 0 # power relais
