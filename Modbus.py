@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+from distutils.log import error
 import select
 import threading
 import minimalmodbus
+from rx import catch
 import serial
 import time
 from ModbusPSoC import PSoC
@@ -52,7 +54,13 @@ def on_message(client, userdata, msg):
             AirValve.EnableAutomode()
         else:
             AirValve.DisableAutomode()
-    
+
+    if (str(topic[-1]) == "lowtemperaturetrigger" ):
+        # controller.write_register(16,int((2<<8)|(int(msg.payload))))
+        hysteresis = 2
+        temperature = int(msg.payload)
+        AirValve.set_low_temperature_trigger(hysteresis, temperature)
+
     if (str(topic[-1]) == "simulate"):
         controller.write_register(74,int(msg.payload))
     
@@ -75,6 +83,9 @@ instrument.clear_buffers_before_each_transaction = True
 controller = PSoC(30,instrument)
 AirValve = Valve(30,instrument)
 
+
+
+
 client = client = mqtt.Client()
 client.connect("192.168.2.201", 1883, 60)
 
@@ -84,102 +95,119 @@ client.on_message = on_message
 x = threading.Thread(target=client.loop_forever, args=())
 x.start()
 
-for i in range(1000000):
-    controller.getRelais()
-    Vac24 = 0
-    if ((controller.Relais[0] & 1 ) == 0): Vac24 = 1
-    AirValve1 = 0
-    if ((controller.Relais[1] & 1 ) == 0): AirValve1 = 1
-    AirValve2 = 0
-    if ((controller.Relais[2] & 1 ) == 0): AirValve2 = 1
-    HotWater = 0
-    if ((controller.Relais[3] & 1 ) == 0): HotWater = 1
-    HighFlow = 0
-    if ((controller.Relais[4] & 1 ) == 0): HighFlow = 1
-    HeatRequest = 0
-    if ((controller.Relais[5] & 1 ) == 0): HeatRequest = 1
+try: 
+    for i in range(1000000):
+        controller.getRelais()
+        Vac24 = 0
+        if ((controller.Relais[0] & 1 ) == 0): Vac24 = 1
+        AirValve1 = 0
+        if ((controller.Relais[1] & 1 ) == 0): AirValve1 = 1
+        AirValve2 = 0
+        if ((controller.Relais[2] & 1 ) == 0): AirValve2 = 1
+        HotWater = 0
+        if ((controller.Relais[3] & 1 ) == 0): HotWater = 1
+        HighFlow = 0
+        if ((controller.Relais[4] & 1 ) == 0): HighFlow = 1
+        HeatRequest = 0
+        if ((controller.Relais[5] & 1 ) == 0): HeatRequest = 1
 
-    client.publish("automation/climatronic/relais/vac24", Vac24)
-    client.publish("automation/climatronic/relais/airvalve1", AirValve1)
-    client.publish("automation/climatronic/relais/airvalve2", AirValve2)
-    client.publish("automation/climatronic/relais/hotwater", HotWater)
-    client.publish("automation/climatronic/relais/highflow", HighFlow)
-    client.publish("automation/climatronic/relais/heatrequest", HeatRequest)
-    
-    
-    controller.getTemperatures()
-    client.publish("automation/climatronic/temperature/circulation",controller.Temperatures[0]/10)
-    client.publish("automation/climatronic/temperature/extracted",controller.Temperatures[1]/10)
-    client.publish("automation/climatronic/temperature/outside",controller.Temperatures[2]/10)
-    client.publish("automation/climatronic/temperature/intake",controller.Temperatures[3]/10)
-    
+        client.publish("automation/climatronic/relais/vac24", Vac24)
+        client.publish("automation/climatronic/relais/airvalve1", AirValve1)
+        client.publish("automation/climatronic/relais/airvalve2", AirValve2)
+        client.publish("automation/climatronic/relais/hotwater", HotWater)
+        client.publish("automation/climatronic/relais/highflow", HighFlow)
+        client.publish("automation/climatronic/relais/heatrequest", HeatRequest)
+        
+        
+        controller.getTemperatures()
+        client.publish("automation/climatronic/temperature/circulation",controller.Temperatures[0]/10)
+        client.publish("automation/climatronic/temperature/extracted",controller.Temperatures[1]/10)
+        client.publish("automation/climatronic/temperature/outside",controller.Temperatures[2]/10)
+        client.publish("automation/climatronic/temperature/intake",controller.Temperatures[3]/10)
+        
 
-    controller.getHumidities()
-    client.publish("automation/climatronic/humidity/circulation",controller.Humidities[0]/10)
-    client.publish("automation/climatronic/humidity/extracted",controller.Humidities[1]/10)
-    client.publish("automation/climatronic/humidity/outside",controller.Humidities[2]/10)
-    client.publish("automation/climatronic/humidity/intake",controller.Humidities[3]/10)
-    
-    SysRegisters = controller.read_registers(12, 7)
-    client.publish("automation/climatronic/temperature/cpu",SysRegisters[0])
+        controller.getHumidities()
+        client.publish("automation/climatronic/humidity/circulation",controller.Humidities[0]/10)
+        client.publish("automation/climatronic/humidity/extracted",controller.Humidities[1]/10)
+        client.publish("automation/climatronic/humidity/outside",controller.Humidities[2]/10)
+        client.publish("automation/climatronic/humidity/intake",controller.Humidities[3]/10)
+        
+        SysRegisters = controller.read_registers(12, 7)
+        client.publish("automation/climatronic/temperature/cpu",SysRegisters[0])
 
-    heater = (SysRegisters[1]) & 0xFF
-    heaterstr = [ "CANCELED", "OFF", "REQUEST", "REQUESTED"]
-    client.publish("automation/climatronic/heatingcontroller/statestr",heaterstr[heater])
-    client.publish("automation/climatronic/heatingcontroller/state",heater)
-    
-    climate = (SysRegisters[1] >> 8) & 0xFF
-    climatestr = ["RETURN_NORMAL", "NORMAL", "TO_HOT", "TO_COLD", "HIGH_TEMPERATURE_MODE", "LOW_TEMPERATURE_MODE"]
-    client.publish("automation/climatronic/climatecontroller/state",climate)
-    client.publish("automation/climatronic/climatecontroller/statestr",climatestr[climate])
+        heater = (SysRegisters[1]) & 0xFF
+        heaterstr = [ "CANCELED", "OFF", "REQUEST", "REQUESTED"]
+        client.publish("automation/climatronic/heatingcontroller/statestr",heaterstr[heater])
+        client.publish("automation/climatronic/heatingcontroller/state",heater)
+        
+        climate = (SysRegisters[1] >> 8) & 0xFF
+        climatestr = ["RETURN_NORMAL", "NORMAL", "TO_HOT", "TO_COLD", "HIGH_TEMPERATURE_MODE", "LOW_TEMPERATURE_MODE"]
+        client.publish("automation/climatronic/climatecontroller/state",climate)
+        client.publish("automation/climatronic/climatecontroller/statestr",climatestr[climate])
 
-    humidity = (SysRegisters[2] >> 8 ) & 0xFF
-    humiditystr = ["CANCEL", "NORMAL", "OVERRIDE", "REQUEST_SHORT_OVERRIDE", "REQUEST_MEDIUM_OVERRIDE", "REQUEST_LONG_OVERRIDE", "REQUEST_OVERRIDE", "REQUEST_HIGHFLOW", "HIGH_FLOW"]
-    client.publish("automation/climatronic/humiditycontroller/state",humidity)
-    client.publish("automation/climatronic/humiditycontroller/statestr",humiditystr[humidity])
-    
-    controller.GetErrorWarning()
-    client.publish("automation/climatronic/health/warning",controller.Warning)
-    client.publish("automation/climatronic/health/error",controller.Error)
+        humidity = (SysRegisters[2] >> 8 ) & 0xFF
+        humiditystr = ["CANCEL", "NORMAL", "OVERRIDE", "REQUEST_SHORT_OVERRIDE", "REQUEST_MEDIUM_OVERRIDE", "REQUEST_LONG_OVERRIDE", "REQUEST_OVERRIDE", "REQUEST_HIGHFLOW", "HIGH_FLOW"]
+        client.publish("automation/climatronic/humiditycontroller/state",humidity)
+        client.publish("automation/climatronic/humiditycontroller/statestr",humiditystr[humidity])
+        
+        AirTempMax_hyst = (SysRegisters[3] >> 8 ) & 0xFF
+        AirTempMax_temp = (SysRegisters[3]) & 0xFF
 
-    print("Uptime: {} Error:{} Warning:{}".format(controller.getUptime(),controller.Error,controller.Warning))
-    time.sleep(5)
-#client.loop_forever()
+        AirTempMin_hyst = (SysRegisters[4] >> 8 ) & 0xFF
+        AirTempMin_temp = (SysRegisters[4]) & 0xFF
+
+        print(f"min {AirTempMin_hyst} - {AirTempMin_temp} | max {AirTempMax_hyst} - {AirTempMax_temp}")
+        
+
+
+        controller.GetErrorWarning()
+        client.publish("automation/climatronic/health/warning",controller.Warning)
+        client.publish("automation/climatronic/health/error",controller.Error)
+
+        print("Uptime: {} Error:{} Warning:{}".format(controller.getUptime(),controller.Error,controller.Warning))
+        time.sleep(5)
+except Exception as errorCode:
+    client.disconnect()
+    x.join()
+    exit 
+
+
+    #client.loop_forever()
 
 
 
-# relais =  [1,1,1,1,1,1,1,1]
-# for i in range(100):
-#     print("Uptime: " + str(controller.getUptime()))
-#     controller.getAdc_Values()
-#     for adcVal in controller.AdcValues:
-#         print("Adc: "+str(adcVal) + " mV")
-    
-#     relais_tmp = [1,1,1,1,1,1,1,1]
+    # relais =  [1,1,1,1,1,1,1,1]
+    # for i in range(100):
+    #     print("Uptime: " + str(controller.getUptime()))
+    #     controller.getAdc_Values()
+    #     for adcVal in controller.AdcValues:
+    #         print("Adc: "+str(adcVal) + " mV")
+        
+    #     relais_tmp = [1,1,1,1,1,1,1,1]
 
-#     relais_tmp[1] = (controller.Uptime%2)
-#     print(" {} - {}".format(relais,relais_tmp) )
-    
-#     if (relais != relais_tmp):
-#         relais = relais_tmp
-#         time.sleep(0.1)
-#         print("ANDERS")
-#         controller.Output_Push(relais_tmp)
+    #     relais_tmp[1] = (controller.Uptime%2)
+    #     print(" {} - {}".format(relais,relais_tmp) )
+        
+    #     if (relais != relais_tmp):
+    #         relais = relais_tmp
+    #         time.sleep(0.1)
+    #         print("ANDERS")
+    #         controller.Output_Push(relais_tmp)
 
-#     time.sleep(0.1)
-#     print(" ")
+    #     time.sleep(0.1)
+    #     print(" ")
 
-# controller.Relais(1,1)
-# time.sleep(1)
-# controller.Relais(1,0)
-# time.sleep(1)
-# controller.Relais(1,1)
-# time.sleep(1)
-# controller.Relais(1,0)
-print("Uptime: " + str(controller.getUptime()))
+    # controller.Relais(1,1)
+    # time.sleep(1)
+    # controller.Relais(1,0)
+    # time.sleep(1)
+    # controller.Relais(1,1)
+    # time.sleep(1)
+    # controller.Relais(1,0)
+    # print("Uptime: " + str(controller.getUptime()))
 
-client.loop_forever()
+    # client.loop_forever()
 
-# ## Change temperature setpoint (SP) ##
-# NEW_TEMPERATURE = 95
-# instrument.write_regisiter(24, NEW_TEMPERATURE, 1)  # Registernumber, value, number of decimals for storage
+    # ## Change temperature setpoint (SP) ##
+    # NEW_TEMPERATURE = 95
+    # instrument.write_regisiter(24, NEW_TEMPERATURE, 1)  # Registernumber, value, number of decimals for storage
