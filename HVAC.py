@@ -67,6 +67,14 @@ class Valve(PSoC):
     def DisableByPassmode(self):
         Relais_6 = 1 # power relais
         self.write_registers(self.Output_Offset+ 6, [Relais_6])
+        
+    def EnableFreeCooling(self):
+        Relais_7 = 0 # power relais
+        self.write_registers(self.Output_Offset+ 7, [Relais_7])
+
+    def DisableFreeCooling(self):
+        Relais_7 = 1 # power relais
+        self.write_registers(self.Output_Offset+ 7, [Relais_7])
 
     def set_low_temperature_trigger(self, hysteresis, temperature):
         self.write_register(self.low_temp_trigger_offset,int((hysteresis&0xFF)<<8)|(temperature&0xFF))
